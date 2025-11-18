@@ -1,0 +1,518 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>AFZ NOTAM — SmartStudy Podcast (PWA + SRS)</title>
+<meta name="description" content="Interaktiver NOTAM-Podcast — Satz-für-Satz EN → DE, PWA-ready, offline, SM-2 SRS." />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#f4f7fb; --panel:#fff; --muted:#475569; --accent:#0f6fff; --accent2:#0ea5a4;
+    --good:#16a34a; --bad:#ef4444; --glass: rgba(15,23,42,0.04); --radius:14px;
+    font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;background:
+    radial-gradient(800px 400px at 10% 10%, rgba(15,99,255,0.05), transparent 8%),
+    linear-gradient(180deg,#f6fbff 0%, var(--bg) 100%); color:#0b1220;}
+  .app{max-width:1100px;margin:18px auto;padding:18px;display:grid;grid-template-columns:320px 1fr;gap:18px;align-items:start}
+  header{grid-column:1/-1;display:flex;align-items:center;gap:12px}
+  h1{margin:0;font-size:20px;font-weight:700;color:var(--accent)}
+  .sub{color:var(--muted);font-size:13px;margin-left:8px}
+  /* sidebar */
+  .sidebar{background:var(--panel);padding:12px;border-radius:12px;box-shadow:0 8px 24px rgba(15,23,42,0.06);border:1px solid rgba(11,18,32,0.03)}
+  .search input{flex:1;padding:9px;border-radius:10px;border:1px solid rgba(11,18,32,0.06)}
+  .list{max-height:72vh;overflow:auto;padding-right:6px;display:flex;flex-direction:column;gap:8px}
+  .seg{padding:10px;border-radius:10px;display:flex;justify-content:space-between;align-items:center;gap:8px;cursor:pointer}
+  .seg .title{font-weight:600;font-size:14px;color:#081127}
+  .seg:hover{background:var(--glass)}
+  .seg.active{background:linear-gradient(90deg,rgba(15,111,255,0.08), rgba(14,165,164,0.04))}
+  /* player */
+  .player{background:var(--panel);padding:18px;border-radius:12px;box-shadow:0 10px 30px rgba(11,18,32,0.06);border:1px solid rgba(11,18,32,0.03);min-height:72vh;display:flex;flex-direction:column}
+  .top-row{display:flex;align-items:center;gap:12px}
+  .cover{width:92px;height:92px;border-radius:12px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:20px}
+  .meta-big h2{margin:0;font-size:20px;color:#071127}
+  .modes{display:flex;gap:8px;align-items:center;margin-left:auto}
+  .mode-btn{padding:8px 10px;border-radius:8px;border:1px solid rgba(11,18,32,0.06);background:transparent;cursor:pointer}
+  .mode-btn.active{background:linear-gradient(90deg,var(--accent),var(--accent2));color:#fff;border:none}
+  .big-area{display:flex;flex-direction:column;align-items:center;justify-content:center;margin-top:16px;gap:10px;flex:1;width:100%}
+  .big-card{width:100%;max-width:820px;background:linear-gradient(180deg,#ffffff,#fbfdff);border-radius:14px;padding:18px;border:1px solid rgba(11,18,32,0.04);box-shadow:0 6px 20px rgba(11,18,32,0.04)}
+  .text-row{display:flex;flex-direction:column;align-items:center;gap:10px}
+  .line{width:100%;text-align:center;padding:12px;border-radius:10px}
+  .line.en{font-weight:800;font-size:20px;color:#071127}
+  .line.de{font-weight:600;font-size:18px;color:var(--muted)}
+  /* Dual & focus */
+  .dual .big-card{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .dual .line{text-align:left}
+  .focus .big-card{max-width:640px;padding:26px}
+  .focus .line.en{font-size:22px}
+  .focus .line.de{font-size:20px}
+  /* controls */
+  .player-controls{display:flex;flex-direction:column;gap:10px;align-items:center;margin-top:12px}
+  .ctrl-row{display:flex;gap:12px;align-items:center}
+  .btn{padding:10px 14px;border-radius:999px;border:1px solid rgba(11,18,32,0.06);background:linear-gradient(180deg,#fff,#f3f7ff);cursor:pointer}
+  .btn.primary{background:linear-gradient(90deg,var(--accent),var(--accent2));color:#fff;border:none;padding:12px 18px;font-weight:700}
+  .progress{width:80%;height:10px;background:rgba(11,18,32,0.04);border-radius:999px;overflow:hidden}
+  .progress > i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));width:0}
+  .meta-small{font-size:13px;color:var(--muted);margin-top:6px}
+  .visuals{display:flex;gap:12px;align-items:center;justify-content:center;margin-top:8px}
+  canvas#wave{width:100%;height:64px;border-radius:8px;background:linear-gradient(180deg, rgba(11,18,32,0.01), transparent)}
+  .plane-wrap{width:200px;height:64px;position:relative}
+  .plane{position:absolute;width:56px;height:56px;background-size:contain;background-repeat:no-repeat;background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="%230f1724" d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9L2 14v2l8-1v3l-2 1v1l3-0.5L14 19v-1l-2-1v-3l9 1z"/></svg>') ;opacity:0.95}
+  .review {display:flex;gap:8px;align-items:center;justify-content:center;margin-top:12px}
+  .review .rbtn{padding:10px 12px;border-radius:10px;border:1px solid rgba(11,18,32,0.06);cursor:pointer;background:#fff}
+  .review .again{background:linear-gradient(90deg,#fff7f6,#fff);border-color:var(--bad)}
+  .review .hard{background:linear-gradient(90deg,#fffaf0,#fff)}
+  .review .good{background:linear-gradient(90deg,#f0fff7,#fff);border-color:var(--good)}
+  @media (max-width:960px){ .app{grid-template-columns:1fr;padding:12px} .sidebar{order:2} .player{order:1} .big-card{max-width:100%} }
+</style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>AFZ NOTAM — SmartStudy Podcast</h1>
+      <div class="sub">Satz-für-Satz EN → DE • SRS (SM-2) • PWA</div>
+      <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+        <select id="voiceSel" title="Stimme wählen" style="padding:8px;border-radius:8px;border:1px solid rgba(11,18,32,0.06)"></select>
+        <button id="pushBtn" class="btn icon" title="Push (subscribe)">Push</button>
+      </div>
+    </header>
+
+    <aside class="sidebar">
+      <div class="search">
+        <input id="search" placeholder="Suche NOTAM..." />
+      </div>
+      <div class="filters" style="align-items:center;display:flex;margin-top:8px">
+        <select id="viewFilter" title="Filter"><option value="all">Alle</option><option value="fav">Favoriten</option><option value="due">Fällig</option></select>
+        <div style="margin-left:auto;display:flex;gap:6px">
+          <button id="modeMenuBtn" class="mode-btn" title="Anzeigemodus umschalten">Modus</button>
+        </div>
+      </div>
+      <div class="list" id="list" aria-live="polite" style="margin-top:12px"></div>
+    </aside>
+
+    <main class="player" id="playerPanel">
+      <div class="top-row">
+        <div class="cover" id="cover">N</div>
+        <div class="meta-big">
+          <h2 id="notamTitle">Wähle ein NOTAM</h2>
+          <p id="notamMeta" class="meta-big-p">Satz-für-Satz Podcast — EN → DE</p>
+        </div>
+        <div class="modes" aria-hidden="false">
+          <button class="mode-btn active" data-mode="A">Reading</button>
+          <button class="mode-btn" data-mode="B">Dual Column</button>
+          <button class="mode-btn" data-mode="C">Focus</button>
+        </div>
+      </div>
+
+      <div class="big-area" id="bigArea">
+        <div class="big-card" id="bigCard">
+          <div class="text-row" id="textRow">
+            <div id="enLine" class="line en" aria-live="polite">—</div>
+            <div id="deLine" class="line de" aria-live="polite">—</div>
+          </div>
+        </div>
+
+        <div class="visuals" style="width:100%">
+          <canvas id="wave"></canvas>
+          <div class="plane-wrap"><div class="plane" id="plane" aria-hidden="true"></div></div>
+        </div>
+
+        <div class="player-controls" role="region" aria-label="Player controls">
+          <div class="ctrl-row">
+            <button id="prevBtn" class="btn" title="Vorheriger Satz">◀</button>
+            <button id="playBtn" class="btn primary" title="Play / Pause">Play</button>
+            <button id="stopBtn" class="btn" title="Stop">Stop</button>
+            <button id="nextBtn" class="btn" title="Nächster Satz">▶</button>
+            <div style="width:14px"></div>
+            <button id="favBtn" class="btn" title="Favorit">☆</button>
+            <button id="shuffleBtn" class="btn" title="Shuffle">Shuffle</button>
+          </div>
+
+          <div style="display:flex;flex-direction:column;align-items:center;gap:8px;width:100%">
+            <div class="progress"><i id="progBar"></i></div>
+            <div class="meta-small">Satz <span id="posIndicator">0/0</span> • <span id="statusInfo">Bereit</span></div>
+          </div>
+
+          <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
+            <label style="font-size:13px;color:var(--muted)">Sleep (min)</label>
+            <input id="sleepInput" type="number" min="0" max="180" placeholder="—" style="width:80px;padding:6px;border-radius:8px;border:1px solid rgba(11,18,32,0.06)">
+            <button id="setSleep" class="btn">Set</button>
+            <button id="notifyBtn" class="btn">Reminder</button>
+          </div>
+
+          <div id="reviewPanel" class="review" style="display:none" aria-live="polite">
+            <div>Wie gut behalten?</div>
+            <button class="rbtn again" data-q="0">Wieder (0)</button>
+            <button class="rbtn hard" data-q="3">Schwer (3)</button>
+            <button class="rbtn good" data-q="4">Gut (4)</button>
+            <button class="rbtn" data-q="5" style="border-color:var(--good)">Leicht (5)</button>
+          </div>
+
+        </div>
+      </div>
+    </main>
+  </div>
+
+<script>
+/* ---------------- DATA (Kurzversion; alle 33 kannst du weiter ergänzen) ---------------- */
+const segments = [
+ {"id":1,"en":"Airmiss reporting procedures\n\nWhenever a pilot considers that his aircraft may have been endangered by the proximity of another aircraft during flight within the Austrian airspace to the extent that a definite risk of collision existed, he is expected to make an Airmiss Report in accordance with the following procedures. An initial report of the incident should be made by radio to the ATS unit with which the aircraft is in communication at the time.","de":"Verfahren zur Meldung über gefährliche Begegnungen von Luftfahrzeugen\n\nWenn ein Pilot zur Annahme gelangt, dass sein Luftfahrzeug während des Fluges im österreichischen Luftraum durch die Annäherung eines anderen Luftfahrzeuges in eine tatsächliche Zusammenstoßgefahr gebracht wurde, soll er gemäß den folgenden Verfahren eine Meldung über eine gefährliche Begegnung abgeben. Eine Erstmeldung über den Vorfall soll über Funk an jene Flugverkehrsdienststelle abgegeben werden, mit der das Luftfahrzeug zu diesem Zeitpunkt in Funkverbindung steht."},
+{"id":2,"en":"Change from VFR Flight to IFR Flight\n\nA pilot in Command who wishes to change from VFR flight to IFR flight shall, at least 10 minutes prior to the time it is intended to continue the flight in compliance with the instrument flight rules: a: communicate the necessary changes to be effected the current flight plan to the appropriate air traffic control unit, when a flight plan was submitted, or b: submit a (new) flight plan, and c: request an IFR clearance.","de":"Übergang vom Sichtflug zum Instrumentenflug\n\nEin verantwortlicher Pilot der beabsichtigt vom Sichtflug zum Instrumentenflug überzugehen, sollte mindestens 10 Minuten vor der Zeit zu der beabsichtigt wird den Flug nach Instrumentenflugregeln fortzuführen: a: die erforderlichen Änderungen betreffend den geltenden Flugplan der zuständigen Flugvekehrskontrollstelle übermitteln, wenn ein Flugplan abgegeben wurde, oder  b: einen (neuen) Flugplan abgeben, und c: eine Instrumentenflug-Freigabe erbitten."},
+{"id":3,"en":"Change from IFR Flight to VFR Flight\n\nWhen an aircraft operating under the instrument flight rules is flown in or encounters visual meteorological conditions it shall not cancel its IFR flight unless it is anticipated and intended, that the flight will be continued in uninterrupted visual meteorological conditions. The cruising levels to be used shall be in accordance with the flight levels published in the AIP or as specifically assigned in the air traffic control clearance.","de":"Übergang vom Instrumentenflug zum Sichtflug\n\nWenn ein Luftfahrzeug, welches unter Instrumentenflugregeln in Sichtflugwetterbedingungen fliegt, oder diese erreicht, sollte es den Instrumentenflug nicht streichen, es sei denn es ist vorhersehbar und beabsichtigt, dass der Flug ununterbrochen unter Sichtflugwetterbedingungen durchgeführt wird. Die zu benützenden Reiseflugflächen sollten in Übereinstimmung mit den Flugflächen sein, die im Luftfahrthandbuch veröffentlicht sind oder durch eine Flugverkehrskontrollfreigabe ausdrücklich zugewiesen wurden."},
+{"id":4,"en":"Radio communication Failure\n\nAircraft departing and en-route: Whenever an Aircraft has been vectored off the flight plan route, it shall proceed according to the radar vector last assigned and acknowledged, completing the change of levels, if applicable, maintaining the heading for the period of time or the portion of the route specified by radar control: thereafter it shall return to the route as indicated in the flight plan.","de":"Funkausfall\n\nAbfliegende und auf Strecke befindliche Luftfahrzeuge: Wenn ein Luftfahrzeug von der Flugplanstrecke weggeführt wurde, sollte es gemäß dem letzten angewiesenen und bestätigten Radarsteuerkurs weiterfliegen, den Flugflächenwechsel abschließen und wenn möglich, den Steuerkurs für jene Zeitspanne oder jenen Teil der Strecke, der von der Radarkontrolle angewiesen wurde, beibehalten: danach sollte es auf die im Flugplan angegebene Strecke zurückkehren."},
+{"id":5,"en":"Rules Applicable to IFR Flights\n\nWithin Austrian territory IFR flights shall only be permissible as controlled flights and within controlled airspace. In particular cases the appropriate air traffic unit may authorize IFR flights outside controlled airspace as far as this becomes necessary with regard to the safe conduct of flight. The cruising levels to be used by IFR flights shall be in accordance with the flight levels published in the AIP Austria or as specifically assigned in the air traffic control clearance.","de":"Anzuwendende Bestimmungen für Instrumentenflüge\n\nInnerhalb des österreichischen Hoheitsgebietes sind Instrumentenflüge nur als kontrollierte Flüge und nur im kontrollierten Luftraum zulässig. In besonderen Fällen kann die entsprechende Flugverkehrsstelle Instrumentenflüge außerhalb des kontrollierten Luftraums zulassen, soweit dies hinsichtlich der sicheren Durchführung des Fluges erforderlich wird. Die von Instrumentenflügen zu verwendenden Reiseflugflächen müssen in Übereinstimmung mit jenen Flugflächen sein, die im Luftfahrthandbuch Österreich verlautbart sind, oder i n  einer Flugverkehrskontrollfreigabe speziell zugewiesen wurden."},
+{"id":6,"en":"Interception\n\nAn aircraft which is intercepted by another aircraft in the airspace overhead Austrian territory shall immediately: follow the instructions given by the intercepting aircraft, interpreting and responding to visual signals in accordance with the specifications in appendix, notify, if possible, the appropriate air traffic services unit, if equipped with SSR transponder select mode A code 7700","de":"Abfang\n\nEin Luftfahrzeug, welches im Luftraum über österreichischem Hoheitsgebiet von einem anderen Luftfahrzeug abgefangen wird, sollte unverzüglich: den Anweisungen des abfangenden Luftfahrzeuges folgen, die optischen Signale, gemäß den Bestimmungen des Anhanges, verstehen und auf diese reagieren. Wenn möglich, die entsprechende Flugverkehrsdienststelle verständigen, und sofern mit einem Sekundärradar-Transponder ausgerüstet, MODE A Code 7700 schalten."},
+{"id":7,"en":"Klagenfurt Aerodrome – Instrument Approach Procedure\n\nWith immediate effect the following regulations will come into force for the circling approach for runway 10. After passing locator Kl break off to the left and proceed visually to runway 10. Avoid overflight city of Klagenfurt below 3000ft Ground. Attention to glider activity south of the aerodrome within the glider area. Whenever possible landing on runway 28 and take-off on runway 10 shall be executed.","de":"Flugplatz Klagenfurt - Instrumentenanflugverfahren\n\nAb sofort treten folgende Bestimmungen für den Platzrundenanflug für Piste 10 in Kraft. Nach Überfliegen des Funkfeuers Kl nach links ausbrechen und nach Sicht zur Piste 10 fliegen. Das Überfliegen der Stadt Klagenfurt unter 3000 Fuß über Grund vermeiden. Auf Segelflugbetrieb südlich des Flugplatzes innerhalb des Segelfluggebietes acht geben. Wenn möglich sollte die Landung auf Piste 28 und der Start auf Piste 10 durchgeführt werden."},
+{"id":8,"en":"Holding Procedures\n\nIf for any reason a pilot is unable to comply with the procedures laid down for any particular holding-pattern he shall advise ATC immediately. After receipt of the clearance to depart the holding pattern, pilots shall operate their aircraft within the limits of the established holding procedure in order to leave the holding point (fix) at the time specified in the clearance.","de":"Warteverfahren\n\nWenn ein Pilot aus irgendeinem Grund die für jede einzelne Warterunde festgelegten Verfahren nicht einhalten kann, sollte er die Flugverkehrskontrolle unverzüglich verständigen. Nach Erhalt der Freigabe zum Verlassen der Warterunde sollten Piloten ihr Luftfahrzeug innerhalb der Limits des festgelegten Warteverfahrens so fliegen, dass sie den Wartepunkt (fix) zu dem in der Freigabe festgelegten Zeitpunkt verlassen."},
+{"id":9,"en":"Standard Holding Pattern\n\nAll turns are to be made at a bank angle of 25° or at a rate turn of 3° per second, whichever requires the lesser bank. When determining heading and timing the pilot shall make allowance for wind direction and speed. The time of flying the outbound heading shall be: up to FL 140 1 minutes at FL 150 and above 1 ½ minutes Where a DME is available, timing may be replaced by terms of distance.","de":"Standard Warterunde\n\nAlle Kurven sind mit einer Querneigung von 25 Grad oder mit einer Drehrate von 3 Grad pro Sekunde durchzuführen, je nachdem was die kleinere Querneigung ergibt. Beim Bestimmen des Steuerkurses und der Flugzeit muss der Pilot die Windrichtung und Geschwindigkeit berücksichtigen. Die Zeit den Abflugkurs zu fliegen sollte: bis Flugfläche 140 1 Minute in Flugfläche 150 und höher 1 ½ Minuten  betragen. Wo ein Entfernungsmessgerät verfügbar ist, kann die Zeitmessung durch eine Distanz ersetzt werden."},
+{"id":10,"en":"Weather Minima for Approach and Landing\n\nIFR flights will be cleared for approach and to land regardless of the prevailing weather conditions. OCA values for each type of approach procedure are contained in the relevant instrument approach chart (SPECIAL LOCAL PROCEDURES) respectively. The operator or the pilot in command shall determinate the Minimum Decision Height and the Minimum Runway Visual Range (RVR) according to the regulations of ICAO. Note: OCA = Obstacle clearance altitude","de":"Wetter – Mindeswerte für Anflug und Landung\n\nInstrumentenflüge werden unabhängig von den vorherrschenden Wetterbedingungen für Anflug und Landung freigegeben. Hindernisfreihöhenwerte für jede Art des Anflugverfahrens sind in der entsprechenden Instrumenten – Anflugkarte (besondere örtliche Verfahren) enthalten. Der Flugzeugbetreiber oder der verantwortliche Pilot sollte die Mindestentscheidungshöhe und die Mindestpistensichtweite gemäß den Bestimmungen der internationalen Zivilluftfahrtbehörde bestimmen."},
+{"id":11,"en":"Notam 3 / 80\n\nAccording to pilot reports interference has been experienced between VOR Wagram (Austria) and VOR Allersberg (Federal Republic of Germany) both operating on frequency 111.20 MHz. A study of those reports and subsequent flight calibrations have shown that interferences are only occurring when the VORs are used outside their assigned and published operational coverage. The attention of flight crews is therefore drawn to the fact the operational coverage of: VOR Wagram / WGM is 60 NM / up to Fl 250 VOR Allersberg / ALB is 60 NM / up to FL 500.","de":"Nachricht für Luftfahrer Nr. 3 / 80\n\nAusgehend von Pilotenberichten wurden Störungen zwischen dem UKW-Drehfunkfeuer Wagram (Österreich) und UKW-Drehfunkfeuer Allersberg (Bundesrepublik Deutschland), beide auf Frequenz 111.20 MHz arbeitend, festgestellt. Eine Studie zu diesen Berichten und anschließende Flugvermessungen ergaben, dass Störungen nur auftreten, wenn die UKW-Drehfunkfeuer außerhalb der zuständigen und verlautbarten Reichweiten verwendet werden. Die Aufmerksamkeit der Flugbesatzung ist daher auf die Tatsache zu richten, dass \n\n die Arbeitsreichweite des \nUKW-Drehfunkfeuer Wagram / WGM 60 nautische Meilen bis Flugfläche 250 beträgt. \nUKW-Drehfunkfeuer Allersberg / ALB 60 nautische Meilen bis Flugfläche 500 beträgt."},
+{"id":12,"en":"Wake Turbulence – Categories and Separation\n\nEspecially large and wide-bodied jet aircraft generate wake-turbulence vortices which may endanger following aircraft during take-off, initial climb, final approach and landing. To minimize the potential hazards of wake turbulence, ATC units will apply increased separation to larger aircraft or issue cautionaries (advise caution). For this purpose, aircraft types are divided into three categories according to their maximum certificated take-off mass.","de":"Wirbelschleppen – Kategorien und Staffelung\n\nInsbesondere großräumige Düsenluftfahrzeuge erzeugen Wirbelschleppen, welche nachfolgende Luftfahrzeuge während des Starts, Anfangssteigfluges, Endanflug und der Landphase des Fluges gefährden können. Um die möglichen Gefahren von Wirbelschleppen zu minimieren, wenden Flugverkehrskontrollstellen erhöhte Staffelung zu größeren Luftfahrzeugen an oder erteilen Warnungen (= raten zur Vorsicht). Zu diesem Zweck werden Luftfahrzeugtypen gemäß ihrem höchstzulässigen Abfluggewicht in 3 Klassen unterteilt."},
+{"id":13,"en":"SSR Radiotelephony Procedures above FL 200 (FIR/UIR Wien)\n\n1) The initial call after a frequency change shall contain only:\n- aircraft identification\n- actual flight level\n- cleared flight level when climbing or descending\n\n2) Additional calls to provide ATC with specific flight information shall be initiated by pilots:\na) upon reaching or leaving assigned flight levels\nb) upon reaching the limit of an ATC clearance\nc) when instructed by ATC.","de":"Funksprechverfahren mit SSR-Transponder über FL 200 (FIR/UIR Wien)\n\n1) Der Erstanruf nach einem Frequenzwechsel sollte nur Folgendes beinhalten:\n- Luftfahrzeugkennung\n- gegenwärtige Flugfläche\n- freigegebene Flugfläche bei Steig- oder Sinkflug\n\n2) Zusätzliche Anrufe, um der Flugverkehrskontrolle besondere Fluginformationen zu geben, sollten in den folgenden Fällen eingeleitet werden:\na) nach dem Erreichen oder Verlassen von zugewiesenen Flugflächen\nb) im Falle des Erreichens der Freigabegrenze einer Flugverkehrskontrollfreigabe\nc) wenn von der Flugverkehrskontrolle angewiesen."},
+{"id":14,"en":"IFR En-Route Clearance and SID Compliance\n\nIFR flights will receive the en-route ATC clearance from the local aerodrome control tower prior to departure. The clearance limit will normally be the aerodrome of destination; however, if an IFR flight remains within Austria, the clearance limit will be main radio navigational aid serving the aerodrome of destination. After take-off, the applicable and cleared departure procedures published in the relevant TMA chart shall be observed (AD 2).","de":"Streckenfreigabe für IFR und Einhaltung der Abflugverfahren\n\nInstrumentenflüge erhalten vor dem Abflug von der örtlichen Flugplatzkontrollstelle eine Streckenflugverkehrsfreigabe. Die Freigabegrenze ist normalerweise der Zielflugplatz, jedoch – wenn ein Instrumentenflug innerhalb Österreichs verbleibt – ist die Freigabegrenze die Hauptfunknavigationshilfe des Zielflugplatzes. Nach dem Start müssen die anwendbaren und freigegebenen Abflugverfahren, die in der betreffenden Nahkontrollbezirkskarte veröffentlicht sind, beachtet werden (AD 2)."},
+{"id":15,"en":"VOR/DME Klagenfurt - out of Service\n\nUntil further notice (approximate duration 8 weeks) VOR/DME Klagenfurt will be out of service due to technical renewal of equipment. During this time NDB KFT, 374 KHz, shall be used as: main radio navigational aid for flights to and from Klagenfurt aerodrome as well as radio facility for holding procedures: navigational aid for en-route flights on all ATS-Routes.","de":"UKW-Drehfunkfeuer / Entfernungsmessgerät Klagenfurt außer Betrieb\n\nBis auf weiteres (ungefähre Dauer 8 Wochen) wird das UKW-Drehfunkfeuer / Entfernungsmessgerät Klagenfurt wegen technischer Erneuerung der Geräte außer Betrieb sein. Während dieser Zeit sollte das ungerichtete Funkfeuer KFT, 374KHz , verwendet werden als: Hauptfunknavigationshilfe für Flüge zu und vom Flugplatz Klagenfurt, sowie als Funkeinrichtung für Warteverfahren: Navigationsfunkhilfe für Streckenflüge auf allen Flugverkehrsdienst-Strecken."},
+{"id":16,"en":"Missed Approach Procedure\n\nIt is expected that pilots will fly the missed approach procedure as published, even if the break-off is initiated prior to reaching the OCA: A Missed Approach Point (MAPt) may be incorporated in procedures at which at the latest the missed approach has to be initiated. In the event a missed approach (go around) is initiated prior to arriving at the missed approach point, it is expected that the pilot will normally proceed in accordance with the designated track to the missed approach point and then follow the missed approach procedure in order to remain within protected airspace. NOTE: OCA = Obstacle clearance altitude","de":"Fehlanflugverfahren\n\nEs wird erwartet, dass Piloten ein Fehlanflugverfahren wie veröffentlicht fliegen, selbst wenn der Abbruch vor Erreichen der Hindernisfreihöhe eingeleitet wird. Ein Fehlanflugpunkt, zu dem spätestens ein Fehlanflug eingeleitet werden muss, kann in das Verfahren integriert sein. Im Falle, dass ein Fehlanflug (Durchstarten) vor dem Erreichen des Fehlanflugpunktes eingeleitet wird, wird erwartet, dass der Pilot normalerweise gemäß dem zugewiesenen Kurs zum Fehlanflugpunkt weiterfliegt, und dann dem Fehlanflugverfahren folgt, um innerhalb des geschützten Luftraumes zu verbleiben."},
+{"id":17,"en":"Circling Approach\n\nVisual maneuvering (circling) is the extension of an instrument approach procedure which brings an aircraft into position for landing on runway not suitably located for a straight-in-approach. The operational minima for CIRCLING consist of a vertical obstacle clearance minimum and required minimum flight visibility within the circling area.","de":"Platzrundenanflug\n\nDer Platzrundenanflug ist die Erweiterung eines Instrumentenanflugverfahrens, das ein Luftfahrzeug in Position für eine Piste, die für einen Geradeausanflug nicht geeignet ist, bringt. Die Mindestanforderungen für einen Platzrundenanflug bestehen aus einer Mindesthindernisfreihöhe und einer erforderlichen Mindestflugsicht innerhalb des Platzrundenbereiches."},
+{"id":18,"en":"Surface Movement Radar (SMR)\n\nSMR will be mainly used to perform the following functions: a: to monitor compliance with clearances and instructions; b: to assist aircraft in taxiing; c: to ensure sufficient separation behind taxiing aircraft; d: to ensure that arriving aircraft have vacated the runway and to ascertain that departing aircraft have commenced take-off-run. SMR is operated at Wien airport, especially in visibility conditions insufficient for the visual observation of the movement areas.","de":"Bodenbewegungsradar (SMR)\n\nDas Bodenbewegungsradar wird hauptsächlich verwendet, um folgende Funktionen zu auszuführen: a: die Einhaltung von Freigaben und Anweisungen zu überwachen; b: Luftfahrzeuge beim Rollen zu unterstützen; c: ausreichende Abstandhaltung hinter rollenden Luftfahrzeugen zu sichern. d: sicherzustellen, dass ankommende Luftfahrzeuge die Piste verlassen haben und sicherzustellen dass abfliegende Luftfahrzeuge den Startlauf begonnen haben. Das Bodenbewegungsradar wird am Flughafen Wien insbesondere bei Sichtverhältnissen, die für Beobachtung der Bewegungsflächen nach Sicht nicht ausreichen, eingesetzt."},
+{"id":19,"en":"Wake Turbulence Procedures\n\n a: When submitting a flight plan, pilots are requested to specify their aircraft wake turbulence category. b: For aircraft in the “heavy” wake turbulence category the word HEAVY shall be included immediately after the aircraft call sign in the initial radiotelephony contact between such aircraft and the aerodrome control tower or the approach control office prior to departure or arrival","de":"Wirbelschleppen Verfahren\n\n a: Bei Abgabe eines Flugplanes werden Piloten aufgefordert Piloten die Wirbelschleppen-Kategorie ihres Luftfahrzeuges anzugeben. b: Für Luftfahrzeuge mit der Wirbelschleppen-Kategorie „HEAVY“ sollte das Wort HEAVY sofort nach dem Luftfahrzeug –Rufzeichen, bei der Funkverbindungsaufnahme zwischen diesem Luftfahrzeug und der Flugplatzkontrollstelle oder der Anflugkontrollstelle vor Abflug oder Anflug, angeführt werden."},
+{"id":20,"en":"Instrument departure Procedure\n\nStandard instrument departure routes SID are also abatement procedures; strict adherence is compulsory within the limits of the performance of the aircraft. If this is not possible due to the performance of a specific aircraft type, the ATC unit shall be informed – whenever possible prior to departure – within delay. When supplementary to a SID radar vectoring is provided by ATC, the climb gradient of the cleared SID shall be maintained.","de":"Instrumenten – Abflugverfahren\n\nStandard Instrumenten Abflugstrecken SID sind auch Lärmminderungsverfahren; genaueste Einhaltung innerhalb der Leistungsgrenzen des Luftfahrzeuges ist verpflichtend. Ist dies auf Grund der Leistungsdaten einer bestimmten Luftfahrzeugtype nicht möglich, so ist die Flugverkehrskontrollstelle unverzüglich – wenn möglich vor dem Abflug – davon zu verständigen. Wenn ergänzend zu einer Standard-Abflugstrecke Radarkursführung von der Flugverkehrskontrolle angeboten wird, sollte der Steiggradient der freigegebenen standard Abflugstrecke beibehalten werden."},
+{"id":21,"en":"Operation of Transponder in Case of Emergency\n\nEmergency procedures: In case of emergency a pilot has: - to continue to squawk an assigned code (a code change might cause loss of identity); - if instructed by ATC to change the code, to do so; - to squawk Mode A Code 7700 if no code has been assigned or in an individual case this is the better course of action (e.g. emergency descent and communication troubles).","de":"Betrieb des Transponders im Notfall\n\nNotverfahren: Im Notfall muss der Pilot: \n\n- einen bereits zugewiesenen Code beibehalten (eine Codeänderung kann zu Identitätsverlust führen); \n- wenn von der Flugverkehrskontrolle aufgetragen den Code zu ändern, dieses tun; \n- Mode A Code 7700 schalten, falls kein Code zugewiesen wurde oder wenn dies im Einzelfall die bessere Maßnahme ist (z.B. Notsinkflug und Funkprobleme)."},
+{"id":22,"en":"Low visibility Procedures\n\nATC will apply safeguards for CAT II/III operations. Low visibility CAT II/III procedures become effective when: the RVR TDZ reaches less than 550M and / or the ceiling/vertical visibility lowers to less than 200FT. The application of ATC procedures for CAT II/III operations is transmitted to arriving aircraft either via ATIS or RTF: “Low Visibility CAT CAT II/III Procedures in Operation”. Note: RVR = runway visual range, TDZ = touchdown zone","de":"Verfahren bei geringer Sicht\n\nDie Flugverkehrskontrolle wird besondere Vorsichtsmaßnahmen für CAT II/III Betrieb anwenden. CAT II/III Verfahren bei geringer Sicht werden angewandt, wenn: Die Pistensichtweite für die Aufsetzzone weniger als 550Meter und/oder die Hauptwolkenuntergrenze / Vertikalsicht weniger als 200 Fuß erreicht. Die Anwendung der Flugverkehrskontrollverfahren für CAT II/III Betrieb wird anfliegenden Luftfahrzeugen entweder über ATIS oder im Sprechfunkweg mitgeteilt; „Low Visibility CAT II/III Procedures in Operation"},
+{"id":23,"en":"Equipment of Aircraft\n\nAircraft operating within the FIR Wien in accordance with IFR or as night – VFR flights outside of the traffic circuit of aerodromes must be equipped with the least one operative transponder being capable of - responding to Mode A interrogations and to reply with 4096 codes and - responding to Mode C interrogations with automatic pressure altitude reporting. Exemptions will be granted in particular cases only. Note: FIR = Flight Information Region.","de":"Ausrüstung von Luftfahrzeugen\n\nLuftfahrzeuge, die innerhalb des Fluginformationsgebietes Wien in Übereinstimmung mit den Instrumentenflugregeln oder als Nachtsichtflüge außerhalb der Platzrunde eines Flugplatzes betrieben werden, müssen mit mindestens einem funktionsfähigen Sekundärradar-Transponder ausgerüstet sein, der imstande sein muss: \n- auf Modus A Abfragen und mit 4096 Kodes zu antworten \n\nund \n- auf Modus C Abfragen mit einer automatischen Druckhöhenübermittlung zu reagieren. Ausnahmen werden nur in Einzelfällen gewährt."},
+{"id":24,"en":"Responsibility of Pilot-In-Command\n\nThe pilot-in-command shall be responsible for compliance with the instructions issued by air traffic control units; when operating within “Ausnahmebereiche” (see definition) the instructions issued by military flight operations offices must be observed. However, the pilot-in-command has the final authority as to the disposition with regard to the operation of the aircraft.","de":"Verantwortlichkeit des verantwortlichen Piloten\n\nDer verantwortliche Pilot sollte für die Einhaltung der Anweisungen der Flugverkehrskontrollstellen verantwortlich sein; wenn in Ausnahmebereichen (siehe Definition) geflogen wird, müssen die Anordnungen der Militärflugleitungen beachtet werden. Nichts desto trotz hat der verantwortliche Pilot die letztendliche Vollmacht über die Anwendung in Bezug auf die Führung des Luftfahrzeuges."},
+{"id":25,"en":"Operation of ELT (emergency location transmitter)\n\nA functioning ELT is generally required for flights with civil aircraft with a maximum certificated take off mass up to 20000kg operating within Austrian territory, except for: a) flights with aircraft with a maximum certificated take off mass of more than 5700kg which are overflying Austria territory without any landing; b) flights remaining within the aerodrome traffic circuit or within areas which can be controlled visually from an observer on the ground.","de":"Mitführen von Notsendern\n\nEin funktionierender Notsender ist generell für Flüge mit Zivilluftfahrzeugen mit einer höchstzulässigen Abflugmasse bis 20000kg, die im österreichischen Hoheitsgebiet betrieben werden, verpflichtend, außer für: a) Flüge mit Luftfahrzeugen mit einer höchstzulässiger Abflugmasse über 5700kg die österreichisches Hoheitsgebiet ohne Landung überfliegen; b) Flüge die in der Platzrunde eines Flugplatzes oder in Bereichen, die von einem Beobachter am Boden durch Sicht überwacht werden können, bleiben."},
+{"id":26,"en":"Operation of ELT (emergency location transmitter)\n\nA functioning ELT is generally required for flights with civil aircraft with a maximum certificated take off mass up to 20000kg operating within Austrian territory, except for: a) flights having ELT failure if this equipment cannot be replaced immediately and necessary safety measures for the provision of search and rescue have been taken b) flights of free balloons of radio contact to an escort car is provided;","de":"Mitführen von Notsendern\n\nEin funktionierender Notsender ist generell für Flüge mit Zivilluftfahrzeugen mit einer höchstzulässigen Abflugmasse bis 20000kg, die im österreichischen Hoheitsgebiet betrieben werden, verpflichtend, außer für: a) Flüge, die einen Notsenderausfall haben, wenn dieses Gerät nicht sofort ausgetauscht werden kann und die notwendigen Sicherheitsvorkehrungen für die Bereitstellung des Such- und Rettungsdienstes getroffen wurden; b) Flüge mit Freiballonen, wenn Funkverbindung zu einem Verfolgerfahrzeug gegeben ist."},
+{"id":27,"en":"Operation of ELT (emergency location transmitter)\n\nA functioning ELT is generally required for flights with civil aircraft with a maximum certificated take off mass up to 20000kg operating within Austrian territory, except for: a) flights with aircraft with a maximum certificated take-off mass of more than 5700kg which are overflying Austrian territory without any landing. Equipment tests should only be made within 5 minutes from the beginning of each hour. If tests are not possible within this period, coordination with the nearest aerodrome control tower is recommended.","de":"Mitführen von Notsendern\n\nEin funktionierender Notsender ist generell für Flüge mit Zivilluftfahrzeugen mit einer höchstzulässigen Abflugmasse bis 20000kg, die im österreichischen Hoheitsgebiet betrieben werden, verpflichtend, außer für: a) Flüge mit Luftfahrzeugen mit einer höchstzulässiger Abflugmasse über 5700kg die österreichisches Hoheitsgebiet ohne Landung überfliegen; Gerätetests sollen nur in den ersten 5 Minuten jeder vollen Stunde durchgeführt werden. Falls Tests nicht innerhalb dieser Zeit gemacht werden können, wird eine Koordination mit der nächsten Flugplatzkontrollstelle empfohlen."},
+{"id":28,"en":"Operation of Aircraft on and in the Vicinity of an Aerodrome\n\nFlights within an aerodrome traffic circuit at controlled aerodromes shall only be permitted as controlled flights. No aircraft shall approach or overfly an aerodrome or depart from and aerodrome unless in compliance with the procedures provided for the purpose with regard to the safety of air traffic or for noise abatement. For regulations concerning military aerodrome traffic zones see AD 2.","de":"Betrieb von Luftfahrzeugen auf und in der Umgebung von einem Flugplatz\n\nFlüge in der Platzrunde eines kontrollierten Flugplatzes sind nur als kontrollierte Flüge zulässig. Kein Luftfahrzeug sollte einen Flugplatz anfliegen oder überfliegen oder von einem Flugplatz abfliegen, ohne Rücksicht auf die Verfahren, die zum Zwecke der Sicherheit der Luftfahrt oder zur Lärmminderung vorgesehen sind, zu nehmen. Für Bestimmungen die militärische Flugplatzverkehrszonen betreffen siehe AD 2."},
+{"id":29,"en":"Operation of aircraft on and in the Vicinity of an Aerodrome\n\nOf not otherwise instructed with regard to the safety of air traffic and for noise abatement, aircraft have a) to make all turns to the left, when approaching to land or after take-off; b) to land and to take-off against the wind, if not, for safety reasons, according to the situation of the runways at the aerodrome or with regard to the traffic situation, another direction shall be preferred. For regulations concerning military aerodrome traffic zones see AD 2.","de":"Betrieb von Luftfahrzeugen auf und in der Umgebung von einem Flugplatz\n\nSofern nicht anders mit Rücksicht auf die Sicherheit der Luftfahrt und zur Lärmminderung aufgetragen, müssen Luftfahrzeuge \n\na) alle Kurven beim Landeanflug und nach dem Start nach links ausführen; \n\nb) gegen den Wind landen und starten, sofern nicht aus Sicherheitsgründen, gemäß der Anordnung der Pisten auf dem Flugplatz oder in Bezug auf die Verkehrslage eine andere Richtung vorzuziehen ist. \nFür Bestimmungen die militärische Flugplatzverkehrszonen betreffen siehe AD 2."},
+{"id":30,"en":"Taxiing on Maneuvering Areas\n\nAn aircraft taxiing on the maneuvering area shall a) stop and hold at all taxi holding points, unless otherwise authorized by TWR; b: stop and hold at all lighted stop bars and may proceed further when the lights are switched-off. Landed aircraft shall vacate the runway after landing without delay if not otherwise instructed.","de":"Rollen auf Manövrierflächen\n\nEin auf Manövrierflächen rollendes Luftfahrzeug sollte a) bei allen Rollhalten anhalten, außer wenn von dem Turm anders angewiesen; b) bei allen beleuchteten Haltebalken anhalten und darf erst weiterrollen, wenn die Beleuchtung ausgeschaltet wird. Gelandete Luftfahrzeuge müssen, wenn nicht anders aufgetragen, die Piste nach der Landung unverzüglich verlassen."},
+{"id":31,"en":"Taxiing on Maneuvering Areas\n\nAn aircraft taxiing on the maneuvering area shall stop and hold at all taxi holding points unless otherwise authorized by TWR. Taxi clearance to apron or parking area will normally be issued by TWR when the landing run is completed. If taxi clearance to apron or parking area has not been received at this time, aircraft shall vacate the runway via the nearest taxiway- intersection and shall hold and wait on the taxiway when entirely beyond the taxi holding position.","de":"Rollen auf Manövrierflächen\n\nEin auf Manövrierflächen rollendes Luftfahrzeug muss bei allen Rollhalten anhalten und warten, außer wenn von dem Turm anders angewiesen; Die Rollfreigabe zur Abstellfläche oder zur Parkfläche wird normalerweise von dem Turm erteilt, sobald der Landelauf abgeschlossen ist. Wenn zu diesem Zeitpunkt noch keine Rollfreigabe zur Abstellfläche oder Parkfläche erhalten wurde, sollte das Luftfahrzeug die Piste über die nächste Rollwegeinmündung verlassen und, wenn zur Gänze hinter dem Rollhalt, auf dem Rollweg anhalten und warten."},
+{"id":32,"en":"Night VFR Flight\n\nIf a flight is commenced as a night – VFR flight and is not entirely conducted in the aerodrome traffic circuit or conducted with helicopters for the provision of ambulance or rescue purposes the flight plan shall be submitted 30 minutes prior to departure.   If a VFR flight is commenced during daytime and it is intended to continue this flight as night VFR flight, a flight plan must be submitted at least 10 minutes prior to the time of intended change to night VFR and a clearance must be requested.","de":"Nachtsichtflug\n\nWenn ein Flug als Nachtsichtflug begonnen wird, und nicht ausschließlich in der Platzrunde eines Flugplatzes oder mit Hubschraubern zur Durchführung von Ambulanz- oder Rettungsflügen durchgeführt wird, sollte der Flugplan 30 Minuten vor dem Abflug übermittelt werden. Wenn ein Sichtflug bei Tag begonnen wird und es beabsichtigt ist, diesen Flug als Nachtsichtflug fortzusetzen, sollte ein Flugplan mindestens 10 Minuten vor der Zeit des beabsichtigten Wechsels zum Nachtsichtflug übermittelt und eine Freigabe erbeten werden."},
+{"id":33,"en":"Practicing of Instrument Approach Procedures by VFR Flights\n\nWhen a VFR Flight is intended to include practice instrument approach to a controlled aerodrome, an appropriate clearance must have been obtained and the approach shall be executed in accordance with the approach procedure published for that aerodrome. The above prescribed clearance shall be requested at least 5 minutes prior to the intended action and before reaching the appropriate fix (navigational aid). The actual position and level shall be indicated in the clearance request, and if necessary, also the type of aircraft and the approach speed shall be added.","de":"Üben von Instrumentenanflugverfahren bei Sichtflügen\n\nWenn bei einem Sichtflug beabsichtigt wird, einen Übungs-Instrumentenanflug auf einem kontrollierten Flugplatz einzuschließen, muss eine entsprechende Freigabe eingeholt werden und der Anflug sollte gemäß den, für diesen Flugplatz verlautbarten Anflugverfahren, durchgeführt werden. Um die oben beschriebene Freigabe sollte mindestens 5 Minuten vor der beabsichtigten Durchführung und vor Erreichen des betreffenden Punktes (Funknavigationshilfe) angesucht werden. Die gegenwärtige Position und Flughöhe sollte im Freigabeansuchen enthalten sein und, falls erforderlich, sollte auch der Luftfahrzeugtyp und die Anfluggeschwindigkeit angeführt werden."}
+];
+
+
+/* ---------------- state ---------------- */
+const STORAGE = 'afz_notam_podcast_srs_v1';
+let state = {};
+try { state = JSON.parse(localStorage.getItem(STORAGE) || '{}'); } catch(e){ state = {}; }
+segments.forEach(s=>{ if(!state[s.id]) state[s.id] = { fav:false, reps:0, ef:2.5, interval:0, due: new Date().toISOString() }; });
+saveState();
+
+/* small helpers */
+const $ = id => document.getElementById(id);
+function saveState(){ try{ localStorage.setItem(STORAGE, JSON.stringify(state)); }catch(e){ console.warn('saveState failed', e); } }
+function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]];} return a; }
+
+/* sentence splitting & pairing */
+function splitSentences(txt){
+  if(!txt) return [];
+  let s = txt.replace(/\r/g,' ').replace(/\n/g,' ').replace(/\s+/g,' ').trim();
+  if(!s) return [];
+  const re = /[^.!?]+[.!?]*/g;
+  const matches = s.match(re) || [];
+  const arr = matches.map(m=>m.trim()).filter(Boolean);
+  return arr.length ? arr : [s];
+}
+function makePairs(item){
+  const enArr = splitSentences(item.en), deArr = splitSentences(item.de);
+  const n = Math.max(enArr.length, deArr.length);
+  const pairs = [];
+  for(let i=0;i<n;i++){
+    const en = enArr[i] || enArr[enArr.length-1] || '';
+    const de = deArr[i] || deArr[deArr.length-1] || '';
+    pairs.push({ en: en.replace(/^[\s\.\-]+|[\s\.\-]+$/g,''), de: de.replace(/^[\s\.\-]+|[\s\.\-]+$/g,'') });
+  }
+  return pairs;
+}
+
+/* ---------------- render list ---------------- */
+let filtered = [], currentId = null, pairs = [], pos = 0;
+function renderList(){
+  const q = ($('search')?.value || '').toLowerCase().trim();
+  const view = $('viewFilter')?.value || 'all';
+  filtered = segments.filter(s=>{
+    const txt = (s.en + ' ' + s.de).toLowerCase();
+    if(q && !txt.includes(q)) return false;
+    if(view==='fav' && !state[s.id].fav) return false;
+    if(view==='due' && new Date(state[s.id].due) > new Date()) return false;
+    return true;
+  });
+  const container = $('list'); if(!container) return;
+  container.innerHTML = '';
+  filtered.forEach(s=>{
+    const el = document.createElement('div'); el.className = 'seg'; el.dataset.id = s.id;
+    const due = new Date(state[s.id].due);
+    const dueMarker = due <= new Date() ? '<span style="color:var(--good)">●</span>' : '';
+    el.innerHTML = `<div style="flex:1"><div class="title">Abschnitt ${s.id}</div><div class="meta">${s.en.split(/[.\n]/)[0].slice(0,70)}...</div></div><div style="text-align:right">${state[s.id].fav? '★':''} ${dueMarker}</div>`;
+    el.addEventListener('click', ()=> selectEpisode(s.id));
+    container.appendChild(el);
+  });
+  highlightSelected();
+}
+document.addEventListener('input', (e)=>{ if(e.target && e.target.id==='search') renderList(); });
+document.addEventListener('change', (e)=>{ if(e.target && e.target.id==='viewFilter') renderList(); });
+renderList();
+
+/* ---------------- playback + TTS ---------------- */
+let speaking = false, cancelSpeak = false;
+
+function loadVoicesIntoSelect(){
+  const sel = $('voiceSel'); if(!sel) return;
+  const voices = speechSynthesis.getVoices() || [];
+  sel.innerHTML = '';
+  // add fallback option
+  const defaultOpt = document.createElement('option'); defaultOpt.value = ''; defaultOpt.textContent = 'Systemstimme (empfohlen)'; sel.appendChild(defaultOpt);
+  voices.forEach(v=>{
+    const opt = document.createElement('option');
+    opt.value = v.name + '||' + v.lang;
+    opt.textContent = `${v.name} — ${v.lang}`;
+    sel.appendChild(opt);
+  });
+}
+if('speechSynthesis' in window){
+  speechSynthesis.onvoiceschanged = loadVoicesIntoSelect;
+  setTimeout(loadVoicesIntoSelect, 300);
+} else {
+  const sel = $('voiceSel'); if(sel) sel.style.display='none';
+}
+
+function speakText(text, preferredLang){
+  return new Promise(resolve=>{
+    if(!text){ resolve(); return; }
+    if(!('SpeechSynthesisUtterance' in window) || !('speechSynthesis' in window)){ resolve(); return; }
+    const u = new SpeechSynthesisUtterance(text);
+    const sel = $('voiceSel');
+    if(sel && sel.value){
+      const [name, lang] = sel.value.split('||');
+      const v = speechSynthesis.getVoices().find(x=> x.name === name);
+      if(v) u.voice = v;
+    }
+    try { u.lang = preferredLang || (u.voice && u.voice.lang) || 'en-US'; } catch(e){}
+    u.rate = 0.95; u.pitch = 1.0;
+    u.onend = ()=> resolve();
+    u.onerror = ()=> resolve();
+    speechSynthesis.speak(u);
+  });
+}
+
+async function playCurrentPair(){
+  if(!pairs || !pairs.length) return;
+  if(pos < 0) pos = 0;
+  if(pos >= pairs.length) return;
+  speaking = true;
+  cancelSpeak = false;
+  startWaveAnim();
+  $('statusInfo').textContent = 'Wiedergabe';
+  const enText = pairs[pos].en || '';
+  const deText = pairs[pos].de || '';
+  $('enLine').textContent = enText || '—';
+  $('deLine').textContent = '—';
+  await speakText(enText, 'en-US');
+  if(cancelSpeak){ speaking=false; stopWaveAnim(); $('statusInfo').textContent='Bereit'; return; }
+  $('deLine').textContent = deText || '—';
+  await speakText(deText, 'de-DE');
+  speaking = false;
+  stopWaveAnim();
+  $('statusInfo').textContent = 'Bereit';
+  updateUI();
+  // auto-advance if not last
+  if(pos < pairs.length - 1){
+    pos++;
+    updateUI();
+  } else {
+    showReview();
+  }
+}
+
+/* controls */
+function playPause(){
+  if(!currentId){ alert('Wähle zuerst ein NOTAM'); return; }
+  if(speaking){
+    stopAll();
+  } else {
+    playCurrentPair();
+  }
+}
+function stopAll(){
+  cancelSpeak = true;
+  try{ speechSynthesis.cancel(); }catch(e){}
+  speaking = false;
+  stopWaveAnim();
+  $('statusInfo').textContent = 'Bereit';
+}
+function nextSentence(){ if(pos < pairs.length - 1){ pos++; playCurrentPair(); } else { showReview(); } updateUI(); }
+function prevSentence(){ if(pos>0){ pos--; playCurrentPair(); } updateUI(); }
+
+/* ---------------- select episode ---------------- */
+function selectEpisode(id){
+  currentId = id;
+  const ep = segments.find(s=> s.id == id);
+  if(!ep) return;
+  $('notamTitle').textContent = `Abschnitt ${ep.id}`;
+  $('notamMeta').textContent = ep.en.split('\n')[0].slice(0,120);
+  $('cover').textContent = 'N' + ep.id;
+  pairs = makePairs(ep);
+  pos = 0;
+  $('enLine').textContent = pairs[0]?.en || '—';
+  $('deLine').textContent = '—';
+  stopAll();
+  highlightSelected();
+  updateUI();
+  centerModeAdjust();
+}
+function highlightSelected(){
+  document.querySelectorAll('.seg').forEach(n=> n.classList.toggle('active', n.dataset.id==currentId));
+}
+
+/* ---------------- waveform + plane ---------------- */
+const wave = $('wave'); const ctx = (wave && wave.getContext) ? wave.getContext('2d') : null;
+function resizeCanvas(){ if(!wave || !ctx) return; const dpr = window.devicePixelRatio || 1; wave.width = Math.max(1, Math.floor(wave.clientWidth * dpr)); wave.height = Math.max(1, Math.floor(wave.clientHeight * dpr)); ctx.setTransform(dpr,0,0,dpr,0,0); }
+window.addEventListener('resize', resizeCanvas); resizeCanvas();
+let rafWave = null, wavePhase = 0;
+function drawWave(active=false){
+  if(!ctx || !wave) return;
+  const w = wave.clientWidth, h = wave.clientHeight;
+  ctx.clearRect(0,0,w,h);
+  ctx.fillStyle = 'rgba(6,15,26,0.03)'; ctx.fillRect(0,0,w,h);
+  ctx.lineWidth = 2;
+  const amp = active ? 16 : 6;
+  ctx.strokeStyle = 'rgba(15,111,255,0.8)';
+  ctx.beginPath();
+  for(let x=0;x<w;x+=2){
+    const y = h/2 + Math.sin((x/20)+wavePhase) * amp * Math.sin((x/w)*Math.PI*2);
+    if(x===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+  }
+  ctx.stroke();
+  wavePhase += 0.08;
+}
+function startWaveAnim(){ if(typeof cancelAnimationFrame === 'function') cancelAnimationFrame(rafWave); function f(){ drawWave(true); rafWave = requestAnimationFrame(f); } f(); startPlane(); }
+function stopWaveAnim(){ if(typeof cancelAnimationFrame === 'function') cancelAnimationFrame(rafWave); drawWave(false); stopPlane(); }
+let planeRaf = null;
+function startPlane(){ const plane = $('plane'); if(!plane) return; const wrap = plane.parentElement; let t = 0; if(typeof cancelAnimationFrame === 'function') cancelAnimationFrame(planeRaf); function step(){ t += 0.006; if(t>1) t=0; const w = Math.max(0, wrap.clientWidth - 56); const x = Math.sin(t*Math.PI) * w; plane.style.transform = 'translate(' + x + 'px,0) rotate(' + (Math.sin(t*Math.PI)*8) + 'deg)'; planeRaf = requestAnimationFrame(step); } step(); }
+function stopPlane(){ if(typeof cancelAnimationFrame === 'function') cancelAnimationFrame(planeRaf); }
+
+/* ---------------- UI bindings ---------------- */
+$('playBtn').addEventListener('click', playPause);
+$('stopBtn').addEventListener('click', ()=>{ stopAll(); $('enLine').textContent='—'; $('deLine').textContent='—'; });
+$('prevBtn').addEventListener('click', ()=>{ stopAll(); prevSentence(); });
+$('nextBtn').addEventListener('click', ()=>{ stopAll(); nextSentence(); });
+$('favBtn').addEventListener('click', ()=>{ if(!currentId) return alert('Wähle ein NOTAM'); state[currentId].fav = !state[currentId].fav; saveState(); renderList(); updateUI(); });
+$('shuffleBtn').addEventListener('click', ()=>{ filtered = shuffle(filtered); renderList(); });
+
+document.addEventListener('keydown',(e)=>{ if(e.code==='Space'){ e.preventDefault(); playPause(); } if(e.key==='ArrowLeft') prevSentence(); if(e.key==='ArrowRight') nextSentence(); });
+
+/* sleep timer & reminder */
+let sleepTimerId = null;
+$('setSleep').addEventListener('click', ()=>{ const m = parseInt(($('sleepInput') && $('sleepInput').value) || 0,10); if(isNaN(m) || m<=0){ if(sleepTimerId){ clearTimeout(sleepTimerId); sleepTimerId=null; alert('Sleep-Timer gestoppt'); } else alert('Bitte Minuten eingeben'); return; } if(sleepTimerId) clearTimeout(sleepTimerId); sleepTimerId = setTimeout(()=>{ stopAll(); alert('Sleep-Timer: Wiedergabe gestoppt'); sleepTimerId=null; }, m*60000); alert(`Sleep-Timer: ${m} Minuten`); });
+$('notifyBtn').addEventListener('click', async ()=>{ if(!('Notification' in window)) return alert('Notifications nicht unterstützt'); if(Notification.permission !== 'granted'){ const p = await Notification.requestPermission(); if(p !== 'granted') return alert('Benachrichtigung verweigert'); } const minutes = prompt('In wieviel Minuten erinnern? (z.B. 30)', '30'); const m = parseInt(minutes,10); if(isNaN(m) || m<=0) return; setTimeout(()=> new Notification('AFZ NOTAM — Reminder', { body:'Zeit zum Lernen — öffne SmartStudy' }), m*60000); alert(`Reminder in ${m} Minuten gesetzt.`); });
+
+/* ---------------- SM-2 (SRS) ---------------- */
+function sm2_update(itemState, quality){
+  let { reps, ef, interval } = itemState;
+  if(typeof reps !== 'number') reps = 0;
+  if(typeof ef !== 'number') ef = 2.5;
+  if(quality < 3){
+    reps = 0;
+    interval = 1;
+    ef = Math.max(1.3, ef - 0.2);
+  } else {
+    if(reps === 0) interval = 1;
+    else if(reps === 1) interval = 6;
+    else interval = Math.round((interval || 6) * ef);
+    reps = reps + 1;
+    ef = ef + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02));
+    if(ef < 1.3) ef = 1.3;
+  }
+  return { reps, ef: Math.round(ef*100)/100, interval };
+}
+function scheduleNext(id, quality){
+  const s = state[id];
+  const updated = sm2_update({ reps: s.reps, ef: s.ef, interval: s.interval }, quality);
+  s.reps = updated.reps; s.ef = updated.ef; s.interval = updated.interval;
+  const due = new Date(); due.setDate(due.getDate() + (s.interval || 1));
+  s.due = due.toISOString();
+  saveState();
+  renderList();
+  return s;
+}
+function showReview(){
+  const panel = $('reviewPanel'); if(!panel) return;
+  panel.style.display = 'flex';
+  const buttons = panel.querySelectorAll('button');
+  for(let i=0;i<buttons.length;i++){
+    const b = buttons[i];
+    b.onclick = ()=> {
+      const q = parseInt(b.dataset.q || '0', 10);
+      if(!currentId){ panel.style.display='none'; return; }
+      scheduleNext(currentId, q);
+      panel.style.display = 'none';
+      alert(`Bewertung gespeichert (quality ${q}). Nächster Termin: ${new Date(state[currentId].due).toLocaleString()}`);
+    };
+  }
+}
+
+/* ---------------- modes ---------------- */
+const modeButtons = document.querySelectorAll('.mode-btn'); let mode = 'A';
+modeButtons.forEach(b=> b.addEventListener('click', ()=>{ modeButtons.forEach(x=>x.classList.remove('active')); b.classList.add('active'); mode = b.dataset.mode; centerModeAdjust(); }));
+function centerModeAdjust(){ const bigCard = $('bigCard'); if(!bigCard) return; bigCard.className = 'big-card'; const bigArea = $('bigArea'); if(!bigArea) return; if(mode==='B'){ bigArea.classList.add('dual'); bigCard.classList.add('dual'); } else { bigArea.classList.remove('dual'); bigCard.classList.remove('dual'); } if(mode==='C'){ bigArea.classList.add('focus'); bigCard.classList.add('focus'); } else { bigArea.classList.remove('focus'); bigCard.classList.remove('focus'); } }
+centerModeAdjust();
+
+/* ---------------- small helpers ---------------- */
+function updateUI(){ $('posIndicator').textContent = `${pairs.length? pos+1:0}/${pairs.length||0}`; $('progBar').style.width = `${pairs.length? (((pos+1)/pairs.length)*100):0}%`; $('playBtn').textContent = speaking ? 'Pause' : 'Play'; $('favBtn').textContent = (currentId && state[currentId].fav) ? '★' : '☆'; }
+setInterval(saveState, 5000);
+
+/* preselect first due or first */
+(function preselect(){ const due = segments.find(s=> new Date(state[s.id].due) <= new Date()); selectEpisode(due ? due.id : (segments[0] && segments[0].id)); })();
+
+/* expose debug */
+window.afz = { selectEpisode, playCurrentPair, stopAll, nextSentence, prevSentence, scheduleNext };
+
+/* register service worker */
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('sw.js').catch(()=>{/* ignore */});
+}
+// sw.js - einfacher PWA-Cache + Push-Handler (Server-seitig erforderlich)
+const CACHE = 'afz-notam-cache-v1';
+const ASSETS = [
+  '/',
+  '/index.html'
+];
+// Installation: Cache app shell
+self.addEventListener('install', e => {
+  e.waitUntil(
+    caches.open(CACHE).then(c => c.addAll(ASSETS))
+  );
+  self.skipWaiting();
+});
+self.addEventListener('activate', e => {
+  e.waitUntil(self.clients.claim());
+});
+self.addEventListener('fetch', e => {
+  e.respondWith(
+    caches.match(e.request).then(r => r || fetch(e.request).then(res => {
+      // cache fetched assets (try-catch for opaque responses)
+      try {
+        const copy = res.clone();
+        caches.open(CACHE).then(cache => cache.put(e.request, copy));
+      } catch(err){}
+      return res;
+    })).catch(()=> caches.match('/index.html'))
+  );
+});
+// Push handler (zeigt Notification, sofern server Push sendet)
+self.addEventListener('push', function(event) {
+  let data = { title: 'AFZ NOTAM', body: 'Zeit zum Lernen' };
+  if(event.data){
+    try { data = event.data.json(); } catch(e) { data = { title:'AFZ NOTAM', body: event.data.text() }; }
+  }
+  const options = { body: data.body, data: data, badge: '/icon-72.png', icon: '/icon-192.png' };
+  event.waitUntil(self.registration.showNotification(data.title, options));
+});
+
+</script>
+
+</body>
+</html>
